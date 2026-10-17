@@ -2,70 +2,61 @@
 
 Stops a worn mouse wheel from scrolling in the wrong direction.
 
-A worn mouse wheel can report steps in the wrong direction, so the page jumps
-back while you scroll. WheelFix runs in the background on Windows 10 and 11
-and blocks the steps that look like faults. It changes no Windows settings.
+A worn wheel sometimes reports a step in the opposite direction, so the page
+jumps back while you scroll. WheelFix sits between the mouse and your
+programs and blocks those steps. It changes no system settings.
 
-## Install
+## Windows
+
+For Windows 10 and 11.
+
+### Install
 
 1. Download this repository (**Code → Download ZIP**) and extract it.
 2. Double-click `windows\install.bat`.
 
-WheelFix is compiled on your PC with the C# compiler included in Windows, so
-there is nothing else to download and no administrator rights are needed. An
-icon appears near the clock, and from now on WheelFix starts automatically
-with Windows through a shortcut in your Startup folder. To stop that, turn
-WheelFix off in Task Manager under Startup apps.
+WheelFix is compiled on your PC with the C# compiler included in Windows:
+nothing else to download, no administrator rights. It is installed in
+`%LOCALAPPDATA%\WheelFix` and starts with Windows from then on.
 
-To update, download the new version and run `install.bat` again. Your
-settings are kept.
+To update, run `install.bat` from the new version (your settings are kept).
+To remove everything, run `uninstall.bat`.
 
-## Use
+### Files
 
-There is nothing to do. Right-click the icon to pause WheelFix, change its
-settings, open the tools or exit.
+In the `windows` folder:
 
-**Settings** opens `wheelfix.ini` in Notepad. The file explains every option;
-save it and WheelFix applies the change within a second. The most common
-adjustments:
+- `install.bat` compiles both programs and installs them; `uninstall.bat`
+  removes them.
+- `WheelFix.cs` becomes **WheelFix.exe**, the filter. It runs in the
+  background with an icon near the clock. Right-click the icon to pause it,
+  open the settings or the tools, or exit.
+- `WheelFixTools.cs` becomes **wheelfix-tools.exe**, command-line tools for
+  tuning and troubleshooting, opened from **Tools** in the menu:
+  - `calibrate` measures your wheel and suggests settings;
+  - `debug` shows live what WheelFix does with each wheel step;
+  - `replay` tests settings on a recording;
+  - `restore` puts back the default settings.
 
-- The page still jumps the wrong way: set `response = grouped`, or raise
-  `confirm-ms`.
-- Changing direction without pausing feels slow: lower `confirm-ms` or
-  `groups`.
-- After a short pause, the first movement feels held back: lower `idle-ms`,
-  for example to 500.
+  Run `wheelfix-tools` without arguments for the details.
+- `WheelFilter.cs` and `WheelHook.cs` hold the filter and the mouse hook,
+  shared by both programs.
 
-Not sure what to change? Let WheelFix measure your wheel: open **Tools** and
-run `wheelfix-tools calibrate`.
+Created by WheelFix in its folder:
 
-## Tools
+- `wheelfix.ini`, the settings. The defaults suit most wheels. Every option
+  is explained in the file itself, and a change applies as soon as you save.
+  Open it from **Settings** in the menu.
 
-**Tools** opens a console in the WheelFix folder with these commands:
+If the page still jumps, or changing direction feels slow, start with
+`wheelfix-tools calibrate`.
 
-- `wheelfix-tools calibrate [down|up|both]`: records your wheel while you
-  turn it in one direction at a time, finds the settings that let the fewest
-  wrong steps through and offers to save them.
-- `wheelfix-tools debug [FILE]`: shows every wheel event and the decision of
-  WheelFix as it happens. With a file name, it also saves them.
-- `wheelfix-tools replay FILE [--option value ...] [--verbose]`: shows what
-  WheelFix would do with a recording, with your settings or with the options
-  given, for example `--response grouped --confirm-ms 600`.
-- `wheelfix-tools restore`: puts back the default settings and keeps the old
-  file as `wheelfix.ini.bak`.
+### How it works
 
-## Uninstall
-
-Double-click `windows\uninstall.bat`. It closes WheelFix, deletes its shortcut
-in the Startup folder and deletes its folder, settings included.
-
-## How it works
-
-The direction you are scrolling in is accepted. A step in the other direction
-is held back: it may be a fault, or the start of a real change of direction.
-If the new direction keeps coming, WheelFix confirms the change and replays up
-to 3 of the held steps. After a pause, the next step is accepted at once,
-whatever its direction.
+The direction you are scrolling in passes at once. A step in the other
+direction is held back until WheelFix is sure you really changed direction;
+then the held steps are sent after all. After a short pause, the next step is
+accepted at once, whatever its direction.
 
 ```
 You turn:       DOWN  DOWN  DOWN  DOWN  DOWN
@@ -73,9 +64,17 @@ Wheel reports:  DOWN  DOWN  UP    DOWN  DOWN
 WheelFix:       pass  pass  block pass  pass
 ```
 
-## Limitations
+### Limitations
 
-- Only the vertical wheel is filtered. WheelFix cannot repair the wheel or
-  recreate steps the mouse never reported.
+- Only the vertical wheel is filtered, and steps the mouse never reported
+  cannot be recreated.
 - The first step after a pause is always accepted, even if it is a fault.
-- Applications running as administrator may ignore the steps WheelFix replays.
+- Programs running as administrator may ignore the steps WheelFix sends.
+
+## Linux
+
+To do.
+
+## License
+
+GPL-3.0, see `LICENSE`.

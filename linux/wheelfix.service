@@ -1,0 +1,18 @@
+[Unit]
+Description=WheelFix mouse wheel filter
+Documentation=https://github.com/LucaReggiannini/wheelfix
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/wheelfix/wheelfix.py
+Restart=on-failure
+RestartSec=2
+# Every mouse event goes through WheelFix: run it before ordinary programs.
+Nice=-10
+# WheelFix only reads /etc/wheelfix.ini and uses the input devices.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

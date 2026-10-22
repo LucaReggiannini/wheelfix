@@ -8,11 +8,14 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace WheelFix
 {
@@ -158,6 +161,8 @@ namespace WheelFix
         private readonly string settingsPath;
         private readonly EventWaitHandle exitEvent;
         private NotifyIcon tray;
+        // The icon in use, drawn by DrawMouse.
+        private IntPtr iconHandle = IntPtr.Zero;
         private ContextMenuStrip menu;
         private ToolStripMenuItem enabledItem;
         private System.Windows.Forms.Timer timer;
@@ -228,10 +233,97 @@ namespace WheelFix
             menu.Items.Add(exitItem);
 
             tray = new NotifyIcon();
-            tray.Icon = SystemIcons.Application;
+            UpdateIcon();
             tray.Text = "WheelFix";
             tray.ContextMenuStrip = menu;
             tray.Visible = true;
+
+            // Redraw the icon when Windows switches between light and dark.
+            // The menu created above makes the event arrive on this thread.
+            SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        }
+
+        // ---- Icon ----
+
+        [DllImport("user32.dll")]
+        private static extern bool DestroyIcon(IntPtr handle);
+
+        // The icon is a mouse, white on a dark taskbar and black on a light
+        // one, and faded while the filter is paused.
+        private void UpdateIcon()
+        {
+            Color color = IsLightTaskbar() ? Color.FromArgb(28, 28, 28) : Color.White;
+            if (!filterEnabled)
+            {
+                color = Color.FromArgb(110, color);
+            }
+            using (Bitmap bitmap = DrawMouse(color))
+            {
+                IntPtr handle = bitmap.GetHicon();
+                tray.Icon = Icon.FromHandle(handle);
+                // Icon.FromHandle does not own the handle: free the old one.
+                if (iconHandle != IntPtr.Zero)
+                {
+                    DestroyIcon(iconHandle);
+                }
+                iconHandle = handle;
+            }
+        }
+
+        private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs args)
+        {
+            if (args.Category == UserPreferenceCategory.General)
+            {
+                UpdateIcon();
+            }
+        }
+
+        // The taskbar follows the "Windows mode" setting, not the app mode.
+        // Windows versions without the setting have a dark taskbar.
+        private static bool IsLightTaskbar()
+        {
+            try
+            {
+                object value = Registry.GetValue(
+                    @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                    "SystemUsesLightTheme", 0);
+                return value is int && (int)value == 1;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Drawn here, so no .ico file is needed: the outline of a mouse with
+        // its wheel. Windows scales it to the size of the tray icons.
+        private static Bitmap DrawMouse(Color color)
+        {
+            Bitmap bitmap = new Bitmap(32, 32);
+            using (Graphics g = Graphics.FromImage(bitmap))
+            using (GraphicsPath body = RoundedRectangle(new RectangleF(7, 2, 18, 28), 8))
+            using (GraphicsPath wheel = RoundedRectangle(new RectangleF(14, 7, 4, 8), 2))
+            using (Pen pen = new Pen(color, 3))
+            using (SolidBrush brush = new SolidBrush(color))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                g.DrawPath(pen, body);
+                g.FillPath(brush, wheel);
+            }
+            return bitmap;
+        }
+
+        private static GraphicsPath RoundedRectangle(RectangleF r, float radius)
+        {
+            float d = radius * 2;
+            GraphicsPath path = new GraphicsPath();
+            path.AddArc(r.Left, r.Top, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Top, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.Left, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         private void ShowWarning(string text)
@@ -406,6 +498,7 @@ namespace WheelFix
             filterEnabled = !filterEnabled;
             filter.Reset();
             enabledItem.Checked = filterEnabled;
+            UpdateIcon();
             tray.Text = filterEnabled ? "WheelFix" : "WheelFix (paused)";
             Note(filterEnabled ? "Filter resumed." : "Filter paused.");
         }
@@ -460,6 +553,8 @@ namespace WheelFix
                 return;
             }
             released = true;
+            // A static event: without this it would keep TrayApp alive.
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             if (timer != null)
             {
                 timer.Dispose();
@@ -472,6 +567,10 @@ namespace WheelFix
             {
                 tray.Visible = false;
                 tray.Dispose();
+            }
+            if (iconHandle != IntPtr.Zero)
+            {
+                DestroyIcon(iconHandle);
             }
             if (menu != null)
             {
